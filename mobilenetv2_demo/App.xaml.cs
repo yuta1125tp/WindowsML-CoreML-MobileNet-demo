@@ -15,7 +15,7 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 
-namespace mobilenet_demo
+namespace mobilenetv2_demo
 {
     /// <summary>
     /// 既定の Application クラスを補完するアプリケーション固有の動作を提供します。
@@ -23,8 +23,8 @@ namespace mobilenet_demo
     sealed partial class App : Application
     {
         /// <summary>
-        /// 単一アプリケーション オブジェクトを初期化します。これは、実行される作成したコードの
-        ///最初の行であるため、main() または WinMain() と論理的に等価です。
+        ///単一アプリケーション オブジェクトを初期化します。これは、実行される作成したコードの
+        ///最初の行であるため、論理的には main() または WinMain() と等価です。
         /// </summary>
         public App()
         {
@@ -40,7 +40,6 @@ namespace mobilenet_demo
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
             Frame rootFrame = Window.Current.Content as Frame;
-            this.DebugSettings.EnableFrameRateCounter = true;
 
             // ウィンドウに既にコンテンツが表示されている場合は、アプリケーションの初期化を繰り返さずに、
             // ウィンドウがアクティブであることだけを確認してください
@@ -64,9 +63,9 @@ namespace mobilenet_demo
             {
                 if (rootFrame.Content == null)
                 {
-                    // ナビゲーション スタックが復元されない場合は、最初のページに移動します。
+                    // ナビゲーションの履歴スタックが復元されていない場合、最初のページに移動します。
                     // このとき、必要な情報をナビゲーション パラメーターとして渡して、新しいページを
-                    //構成します
+                    // 作成します
                     rootFrame.Navigate(typeof(MainPage), e.Arguments);
                 }
                 // 現在のウィンドウがアクティブであることを確認します

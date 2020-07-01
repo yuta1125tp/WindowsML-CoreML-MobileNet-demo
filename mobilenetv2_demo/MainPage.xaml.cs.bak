@@ -1,0 +1,207 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading;
+using System.Threading.Tasks;
+using Windows.Devices.Enumeration;
+using Windows.Foundation;
+using Windows.Foundation.Collections;
+using Windows.Graphics.Imaging;
+using Windows.Media;
+using Windows.Media.Capture;
+using Windows.Media.MediaProperties;
+using Windows.Storage;
+using Windows.Storage.Streams;
+using Windows.System.Threading;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Controls.Primitives;
+using Windows.UI.Xaml.Data;
+using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Navigation;
+
+using System.Threading;
+using System.Threading.Tasks;
+using System.Diagnostics;
+using Windows.System.Threading;
+using Windows.Storage;
+using Windows.Media;
+using Windows.Media.Capture;
+using Windows.Media.MediaProperties;
+using Windows.Graphics.Imaging;
+using Windows.Devices.Enumeration;
+using mobilenets;
+
+
+// 空白ページの項目テンプレートについては、https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x411 を参照してください
+
+namespace MobileNetDemo
+{
+    /// <summary>
+    /// それ自体で使用できる空白ページまたはフレーム内に移動できる空白ページ。
+    /// </summary>
+    public sealed partial class MainPage : Page
+    {
+        private MediaCapture mediaCapture;
+        private SemaphoreSlim semaphore = new SemaphoreSlim(1);  //複数のスレッドで検出しないようにするためのsemaphore
+        private ThreadPoolTimer timer;
+
+        private mobilenetv2Model ModelGen;
+        private mobilenetv2Input ModelInput = new mobilenetv2Input();
+        private mobilenetv2Output ModelOutput;
+
+        public MainPage()
+        {
+            this.InitializeComponent();
+            //_ = LoadModelAsync();
+        }
+
+        private async Task LoadModelAsync()
+        {
+            // Load a machine learning model
+            StorageFile modelFile = await StorageFile.GetFileFromApplicationUriAsync(new Uri($"ms-appx:///Assets/mobilenetv2.onnx"));
+            ModelGen = await mobilenetv2Model.CreateFromStreamAsync(modelFile as IRandomAccessStreamReference);
+        }
+
+        private async void Page_Loaded(object sender, RoutedEventArgs e)
+        {
+            Debug.WriteLine("Hello");
+            await InitCameraAsync();
+        }
+
+        private async Task InitCameraAsync()
+        {
+            try
+            {
+                //mediaCaptureオブジェクトが有効な時は一度Disposeする
+                if (mediaCapture != null)
+                {
+                    mediaCapture.Dispose();
+                    mediaCapture = null;
+                }
+
+                //キャプチャーの設定
+                var captureInitSettings = new MediaCaptureInitializationSettings();
+                captureInitSettings.VideoDeviceId = "";
+                captureInitSettings.StreamingCaptureMode = StreamingCaptureMode.Video;
+
+                //カメラデバイスの取得
+                var cameraDevices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+
+                if (cameraDevices.Count() == 0)
+                {
+                    Debug.WriteLine("No Camera");
+                    return;
+                }
+                else if (cameraDevices.Count() == 1)
+                {
+                    Debug.WriteLine("count1\n");
+                    captureInitSettings.VideoDeviceId = cameraDevices[0].Id;
+                }
+                else
+                {
+                    Debug.WriteLine("countelse\n");
+                    captureInitSettings.VideoDeviceId = cameraDevices[1].Id;
+                }
+
+                //キャプチャーの準備
+                mediaCapture = new MediaCapture();
+                await mediaCapture.InitializeAsync(captureInitSettings);
+
+                VideoEncodingProperties vp = new VideoEncodingProperties();
+
+                Debug.WriteLine("before camera size\n");
+                //RasperryPiでは解像度が高いと映像が乱れるので小さい解像度にしている
+                //ラズパイじゃなければ必要ないかも？
+                vp.Height = 720;
+                vp.Width = 1280;
+                vp.Subtype = "RGB24";
+
+                await mediaCapture.VideoDeviceController.SetMediaStreamPropertiesAsync(MediaStreamType.VideoPreview, vp);
+
+                capture.Source = mediaCapture;
+
+                //キャプチャーの開始
+                await mediaCapture.StartPreviewAsync();
+
+                Debug.WriteLine("Camera Initialized");
+
+                //指定したFPS毎にタイマーを起動する。
+                TimeSpan timerInterval = TimeSpan.FromMilliseconds(1);
+                timer = ThreadPoolTimer.CreatePeriodicTimer(new TimerElapsedHandler(CurrentVideoFrame), timerInterval);
+
+            }
+            catch (Exception ex)
+            {
+                Debug.Write(ex.Message);
+            }
+        }
+        private async void CurrentVideoFrame(ThreadPoolTimer timer)
+        {
+            //複数スレッドでの同時実行を抑制
+            if (!semaphore.Wait(0))
+            {
+                return;
+            }
+
+            try
+            {
+                //AIモデルのインプットデータは解像度224x224,BGRA8にする必要がある。
+                using (VideoFrame previewFrame = new VideoFrame(BitmapPixelFormat.Bgra8, 224, 224))
+                {
+                    await this.mediaCapture.GetPreviewFrameAsync(previewFrame);
+
+                    if (previewFrame != null)
+                    {
+                        ModelInput.image = Windows.AI.MachineLearning.ImageFeatureValue.CreateFromVideoFrame(previewFrame);
+
+                        // Evaluate the model
+                        ModelOutput = await ModelGen.EvaluateAsync(ModelInput);
+
+                        // Convert output to datatype
+                        IList < IDictionary<string, float>> vectorImage = ModelOutput.classLabelProbs;
+                        var scoreList = (from number in vectorImage select number.Values).ToList();
+
+                        //IReadOnlyList<float> vectorImage = ModelOutput.Plus214_Output_0.GetAsVectorView();
+                        //IList<float> imageList = vectorImage.ToList();
+
+                        // Query to check for highest probability digit
+                        var maxIndex = scoreList.IndexOf(scoreList.Max());
+
+                        // Display the results
+                        this.msgTbk.Text = String.Join(",", vectorImage[maxIndex].Keys);
+
+                        //if (outputData != null)
+                        //{
+                        //    //UIスレッドに結果を表示
+                        //    var ignored = this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        //    {
+                        //        string result = "";
+                        //        //予測結果を表示
+                        //        //string label = outputData.classLabel[0];
+                        //        //    result = result + "Class: " + label;// + ", Prob: " + outputData.prob[label];
+                        //        this.msgTbk.Text = result;
+                        //    });
+                        //}
+                    }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+
+            finally
+            {
+                semaphore.Release();
+            }
+        }
+
+    }
+}

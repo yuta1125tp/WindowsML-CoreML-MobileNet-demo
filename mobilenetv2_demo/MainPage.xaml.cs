@@ -1,33 +1,24 @@
-﻿using System;
+﻿using mobilenetv2_demo;
+using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
-
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using Windows.System.Threading;
-using Windows.Storage;
+using Windows.Devices.Enumeration;
+using Windows.Graphics.Imaging;
 using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.MediaProperties;
-using Windows.Graphics.Imaging;
-using Windows.Devices.Enumeration;
-using mobilenets;
+using Windows.Storage;
+using Windows.Storage.Streams;
+using Windows.System.Threading;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
 
 // 空白ページの項目テンプレートについては、https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x411 を参照してください
 
-namespace mobilenet_demo
+namespace mobilenetv2_demo
 {
     /// <summary>
     /// それ自体で使用できる空白ページまたはフレーム内に移動できる空白ページ。
@@ -35,35 +26,32 @@ namespace mobilenet_demo
     public sealed partial class MainPage : Page
     {
         private MediaCapture mediaCapture;
-        private SemaphoreSlim semaphore = new SemaphoreSlim(1);                     //複数のスレッドで検出しないようにするためのsemaphore
+        private SemaphoreSlim semaphore = new SemaphoreSlim(1);  //複数のスレッドで検出しないようにするためのsemaphore
         private ThreadPoolTimer timer;
-        private MobilenetModel mobilenetModel = new MobilenetModel();             //AIモデルオブジェクト
-        private MobilenetModelInput inputData = new MobilenetModelInput();        //input用オブジェクト（VideoFrame）
-        private MobilenetModelOutput outputData = new MobilenetModelOutput();     //output用オブジェクト（List）
+
+        private mobilenetv2Model ModelGen;
+        private mobilenetv2Input ModelInput = new mobilenetv2Input();
+        private mobilenetv2Output ModelOutput;
 
         public MainPage()
         {
             this.InitializeComponent();
+            _ = LoadModelAsync();
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
+        private async Task LoadModelAsync()
+        {
+            // Load a machine learning model
+            StorageFile modelFile = await StorageFile.GetFileFromApplicationUriAsync(new Uri($"ms-appx:///Assets/mobilenetv2.onnx"));
+            ModelGen = await mobilenetv2Model.CreateFromStreamAsync(modelFile as IRandomAccessStreamReference);
+        }
+
         private async void Page_Loaded(object sender, RoutedEventArgs e)
         {
             Debug.WriteLine("Hello");
             await InitCameraAsync();
-
-            LoadModel();
         }
 
-
-        /// <summary>
-        /// カメラの初期化及びタイマーの起動
-        /// </summary>
-        /// <returns></returns>
         private async Task InitCameraAsync()
         {
             try
@@ -131,11 +119,6 @@ namespace mobilenet_demo
                 Debug.Write(ex.Message);
             }
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="timer"></param>
         private async void CurrentVideoFrame(ThreadPoolTimer timer)
         {
             //複数スレッドでの同時実行を抑制
@@ -151,24 +134,37 @@ namespace mobilenet_demo
                 {
                     await this.mediaCapture.GetPreviewFrameAsync(previewFrame);
 
-                    if (previewFrame != null)
+                    if (ModelGen != null && previewFrame !=null)
                     {
-                        inputData.data = previewFrame;
+                        ModelInput.image = Windows.AI.MachineLearning.ImageFeatureValue.CreateFromVideoFrame(previewFrame);
 
-                        //AIモデルにデータを渡すと推定値の入ったリストが返る
-                        outputData = await mobilenetModel.EvaluateAsync(inputData);
+                        // Evaluate the model
+                        ModelOutput = await ModelGen.EvaluateAsync(ModelInput);
 
-                        //UIスレッドに結果を表示
+                        // Convert output to datatype
+                        var batchIdx = 0;
+                        IDictionary<string, float> vectorImage = ModelOutput.classLabelProbs[batchIdx];
+                        var scoreList = vectorImage.Values.ToList();
+                        var labelList = vectorImage.Keys.ToList();
+
+                        //IReadOnlyList<float> vectorImage = ModelOutput.Plus214_Output_0.GetAsVectorView();
+                        //IList<float> imageList = vectorImage.ToList();
+
+                        // Query to check for highest probability digit
+                        var maxValue = scoreList.Max();
+                        var maxIndex = scoreList.IndexOf(maxValue);
+
+                        var label = labelList[maxIndex];
+
+                        // Display the results on UI Thread.
                         var ignored = this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
                         {
                             string result = "";
                             //予測結果を表示
-                            string label = outputData.classLabel[0];
-                            result = result + "Class: " + label + ", Prob: " + outputData.prob[label];
-
-
+                            result = result + "Class: " + label + ", Prob: " + maxValue;
                             this.msgTbk.Text = result;
                         });
+
                     }
                 }
             }
@@ -184,16 +180,5 @@ namespace mobilenet_demo
             }
         }
 
-        /// <summary>
-        /// AIモデルをロード
-        /// </summary>
-        private async void LoadModel()
-        {
-            StorageFile modelFile = await StorageFile.GetFileFromApplicationUriAsync(new Uri($"ms-appx:///Assets/mobilenet.onnx"));
-            mobilenetModel = await MobilenetModel.CreateMobilenetModel(modelFile);
-        }
-
     }
-
-   
 }

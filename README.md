@@ -5,14 +5,15 @@ We prepare CoreML MobileNet for image classification from [here](https://coreml.
 ![mobilenet_demo](mobilenet_demo.gif)
 
 ## Prepare model
-Download MobileNet model from [Core ML Store](https://coreml.store/mobilenet).  
-Then you see `MobileNet.mlmodel` , move model file to `./convert_model` directory.  
+Download MobileNet model from [Core ML Models](https://developer.apple.com/machine-learning/models/).  
+Then you see [`MobileNetV2.mlmodel`](https://ml-assets.apple.com/coreml/models/Image/ImageClassification/MobileNetV2/MobileNetV2.mlmodel), move model file to `./convert_model` directory.  
 
 We use `coremltools` for loading CoreML model and `winmltools` for converting CoreML model into ONNX format.  
 First, install `coremltools` and `winmltools` by pip.  
 
 ```shell
-pip install coremltools winmltools
+# the latest version @ 2020/06/27 is winmltools==1.5.2, but it couses import error at onnxmltools
+pip install coremltools winmltools==1.4.2
 ```
 
 Second, execute python file for converting CoreML model.  
@@ -40,3 +41,8 @@ Start solution application.
 
 ### Deploying the sample
 - Select Build > Deploy Solution.
+
+### Cite
+- [Tutorial: Create a Windows Machine Learning UWP application (C#)](https://docs.microsoft.com/windows/ai/windows-ml/get-started-uwp)  
+- [Github: MNIST ONNX UWP](https://github.com/Microsoft/Windows-Machine-Learning/tree/master/Samples/MNIST/UWP/cs)  
+- [Qiita: 3分で分かる！ONNXフォーマットとWindows Machine Learning！](https://qiita.com/ymym3412/items/05a7cecf81309a3f131e)  
