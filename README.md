@@ -1,10 +1,11 @@
 # WindowsML-CoreML-MobileNet-demo
 Sample code of converting CoreML MobileNet into Windows Machine Learning.  
-We prepare CoreML MobileNet for image classification from [here](https://coreml.store/mobilenet).  
+We prepare CoreML MobileNet for image classification (MobileNetV2) and action classsification(TPN: Temporal Pyramid Network).
 
 ![mobilenet_demo](mobilenet_demo.gif)
 
-## Prepare model
+## Prepare model  
+### MobileNetV2  
 Download MobileNet model from [Core ML Models](https://developer.apple.com/machine-learning/models/).  
 Then you see [`MobileNetV2.mlmodel`](https://ml-assets.apple.com/coreml/models/Image/ImageClassification/MobileNetV2/MobileNetV2.mlmodel), move model file to `./convert_model` directory.  
 
@@ -36,6 +37,11 @@ Finally, move each files.
 `mobilenet.cs -> {solution dir}`  
 `mobilenet.onnx -> {solution dir}/Assets`  
 
+
+### TPN  
+You can prepare the onnx file using [my forked repo](https://github.com/yuta1125tp/TPN/tree/cpu).  
+Great thanks to [the official repository](https://github.com/decisionforce/TPN) again!  
+
 ## Run demo
 Start solution application.  
 
@@ -46,3 +52,4 @@ Start solution application.
 - [Tutorial: Create a Windows Machine Learning UWP application (C#)](https://docs.microsoft.com/windows/ai/windows-ml/get-started-uwp)  
 - [Github: MNIST ONNX UWP](https://github.com/Microsoft/Windows-Machine-Learning/tree/master/Samples/MNIST/UWP/cs)  
 - [Qiita: 3分で分かる！ONNXフォーマットとWindows Machine Learning！](https://qiita.com/ymym3412/items/05a7cecf81309a3f131e)  
+- [Temporal Pyramid Network for Action Recognition](https://github.com/decisionforce/TPN)  
